@@ -25,8 +25,8 @@ class VideoLoader {
       onComplete();
     }
 
-    final fileStream = DefaultCacheManager()
-        .getFileStream(this.url, headers: this.requestHeaders as Map<String, String>?);
+    final fileStream = DefaultCacheManager().getFileStream(this.url,
+        headers: this.requestHeaders as Map<String, String>?);
 
     fileStream.listen((fileResponse) {
       if (fileResponse is FileInfo) {
@@ -45,27 +45,37 @@ class StoryVideo extends StatefulWidget {
   final VideoLoader videoLoader;
   final Widget? loadingWidget;
   final Widget? errorWidget;
+  final Color backgroundColor;
+  final BoxFit videoFit;
 
-  StoryVideo(this.videoLoader, {
+  StoryVideo(
+    this.videoLoader, {
     Key? key,
     this.storyController,
     this.loadingWidget,
     this.errorWidget,
+    required this.backgroundColor,
+    required this.videoFit,
   }) : super(key: key ?? UniqueKey());
 
-  static StoryVideo url(String url, {
+  static StoryVideo url(
+    String url, {
     StoryController? controller,
+    Color? backgroundColor,
     Map<String, dynamic>? requestHeaders,
     Key? key,
     Widget? loadingWidget,
     Widget? errorWidget,
+    required BoxFit videoFit,
   }) {
     return StoryVideo(
       VideoLoader(url, requestHeaders: requestHeaders),
       storyController: controller,
+      backgroundColor: backgroundColor ?? Colors.black,
       key: key,
       loadingWidget: loadingWidget,
       errorWidget: errorWidget,
+      videoFit: videoFit,
     );
   }
 
@@ -117,38 +127,59 @@ class StoryVideoState extends State<StoryVideo> {
   Widget getContentView() {
     if (widget.videoLoader.state == LoadState.success &&
         playerController!.value.isInitialized) {
-      return Center(
-        child: AspectRatio(
-          aspectRatio: playerController!.value.aspectRatio,
-          child: VideoPlayer(playerController!),
-        ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final aspectRatio = playerController!.value.aspectRatio > 0
+              ? playerController!.value.aspectRatio
+              : 16 / 9; // Дефолтное соотношение
+
+          return AspectRatio(
+            aspectRatio: aspectRatio,
+            child: ClipRect(
+              child: FittedBox(
+                fit: widget.videoFit,
+                child: SizedBox(
+                  width: aspectRatio > 1
+                      ? constraints.maxWidth
+                      : constraints.maxHeight * aspectRatio,
+                  height: aspectRatio > 1
+                      ? constraints.maxWidth / aspectRatio
+                      : constraints.maxHeight,
+                  child: VideoPlayer(playerController!),
+                ),
+              ),
+            ),
+          );
+        },
       );
     }
 
     return widget.videoLoader.state == LoadState.loading
         ? Center(
-            child: widget.loadingWidget?? Container(
-              width: 70,
-              height: 70,
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                strokeWidth: 3,
-              ),
-            ),
+            child: widget.loadingWidget ??
+                Container(
+                  width: 70,
+                  height: 70,
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    strokeWidth: 3,
+                  ),
+                ),
           )
         : Center(
-            child: widget.errorWidget?? Text(
-            "Media failed to load.",
-            style: TextStyle(
-              color: Colors.white,
-            ),
-          ));
+            child: widget.errorWidget ??
+                Text(
+                  "Media failed to load.",
+                  style: TextStyle(
+                    color: Colors.white,
+                  ),
+                ));
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.black,
+      color: widget.backgroundColor,
       height: double.infinity,
       width: double.infinity,
       child: getContentView(),
